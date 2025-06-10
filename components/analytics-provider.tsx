@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { createContext, useContext, useEffect } from "react"
+import { createContext, useContext, useEffect, Suspense } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 
 type AnalyticsContextType = {
@@ -15,7 +15,7 @@ const AnalyticsContext = createContext<AnalyticsContextType>({
 
 export const useAnalytics = () => useContext(AnalyticsContext)
 
-export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
+function AnalyticsTracker() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -72,6 +72,12 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  return null
+}
+
+export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+
   const trackEvent = async (eventName: string, eventData: any = {}) => {
     try {
       // Only track in production or when API is available
@@ -117,5 +123,12 @@ export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  return <AnalyticsContext.Provider value={{ trackEvent }}>{children}</AnalyticsContext.Provider>
+  return (
+    <AnalyticsContext.Provider value={{ trackEvent }}>
+      {children}
+      <Suspense fallback={null}>
+        <AnalyticsTracker />
+      </Suspense>
+    </AnalyticsContext.Provider>
+  )
 }

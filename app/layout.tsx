@@ -63,13 +63,15 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange={false}>
           <AuthProvider>
-            <AnalyticsProvider>
-              <div className="relative flex min-h-screen flex-col">
-                <Suspense>{children}</Suspense>
-                <AIChatbot />
-              </div>
-              <Toaster />
-            </AnalyticsProvider>
+            <Suspense fallback={null}>
+              <AnalyticsProvider>
+                <div className="relative flex min-h-screen flex-col">
+                  {children}
+                  <AIChatbot />
+                </div>
+                <Toaster />
+              </AnalyticsProvider>
+            </Suspense>
           </AuthProvider>
         </ThemeProvider>
       </body>
