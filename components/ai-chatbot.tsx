@@ -3,10 +3,13 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, X, Send, Bot, User, Sparkles } from "lucide-react"
+import { MessageCircle, X, Send, Bot, User, Sparkles, Maximize2, Minimize2 } from "lucide-react"
+import { aiAPI } from "@/lib/api"
+import { useAnalytics } from "@/components/analytics-provider"
 
 interface Message {
   id: string
@@ -17,9 +20,10 @@ interface Message {
 
 export function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
+      id: "welcome",
       role: "assistant",
       content:
         "Hi! I'm your AI fashion assistant. I can help you find styles, create moodboards, or answer questions about fashion trends. What would you like to explore today?",
@@ -29,6 +33,7 @@ export function AIChatbot() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { trackEvent } = useAnalytics()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -52,26 +57,39 @@ export function AIChatbot() {
     setInput("")
     setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        "I'd love to help you find that style! Can you describe the aesthetic you're going for or share some inspiration images?",
-        "Great choice! That style is trending right now. I can help you find similar pieces from various retailers.",
-        "Based on your preferences, I recommend checking out minimalist and contemporary styles. Would you like me to show you some options?",
-        "I can help you create a moodboard for that look! Upload some inspiration images and I'll find matching products.",
-        "That's a fantastic style direction! Let me suggest some pieces that would work well with that aesthetic.",
-      ]
+    try {
+      // Track chat event
+      trackEvent("chat_message_sent", { message_length: input.length })
+
+      // Get context from previous messages (last 5)
+      const context = messages.slice(-5).map((msg) => ({ role: msg.role, content: msg.content }))
+
+      // Call AI API
+      const response = await aiAPI.chat(input, { context })
 
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: Date.now().toString(),
         role: "assistant",
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: response.message,
         timestamp: new Date(),
       }
 
       setMessages((prev) => [...prev, assistantMessage])
+    } catch (error) {
+      console.error("Chat error:", error)
+
+      // Add error message
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: "Sorry, I'm having trouble connecting right now. Please try again later.",
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -81,102 +99,149 @@ export function AIChatbot() {
     }
   }
 
+  const toggleExpand = () => {
+    setIsExpanded(!isExpanded)
+    trackEvent("chat_expand_toggle", { expanded: !isExpanded })
+  }
+
   return (
     <>
       {/* Chat Toggle Button */}
       <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          onClick={() => setIsOpen(!isOpen)}
-          size="lg"
-          className="h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
         >
-          {isOpen ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
-        </Button>
+          <Button
+            onClick={() => {
+              setIsOpen(!isOpen)
+              trackEvent("chat_toggle", { opened: !isOpen })
+            }}
+            size="lg"
+            className="h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          >
+            {isOpen ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+          </Button>
+        </motion.div>
       </div>
 
       {/* Chat Window */}
-      {isOpen && (
-        <Card className="fixed bottom-24 right-6 w-96 h-[500px] z-40 shadow-2xl border-2">
-          <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-t-lg">
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              AI Fashion Assistant
-            </CardTitle>
-          </CardHeader>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="fixed z-40"
+            style={{
+              bottom: "6rem",
+              right: "1.5rem",
+              width: isExpanded ? "calc(100vw - 3rem)" : "380px",
+              height: isExpanded ? "calc(100vh - 9rem)" : "500px",
+              maxWidth: isExpanded ? "900px" : "380px",
+            }}
+          >
+            <Card className="w-full h-full shadow-2xl border-2">
+              <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-t-lg flex flex-row items-center justify-between p-4">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="w-5 h-5" />
+                  AI Fashion Assistant
+                </CardTitle>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="text-white h-8 w-8" onClick={toggleExpand}>
+                    {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </CardHeader>
 
-          <CardContent className="p-0 flex flex-col h-[420px]">
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  {message.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
-                      <Bot className="w-4 h-4 text-white" />
+              <CardContent className="p-0 flex flex-col h-[calc(100%-56px)]">
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      {message.role === "assistant" && (
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+
+                      <div
+                        className={`max-w-[80%] p-3 rounded-lg ${
+                          message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      </div>
+
+                      {message.role === "user" && (
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          <User className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {isLoading && (
+                    <div className="flex gap-3 justify-start">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+                        <Bot className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="bg-muted p-3 rounded-lg">
+                        <div className="flex space-x-1">
+                          <motion.div
+                            animate={{ y: [0, -5, 0] }}
+                            transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, delay: 0 }}
+                            className="w-2 h-2 bg-muted-foreground rounded-full"
+                          />
+                          <motion.div
+                            animate={{ y: [0, -5, 0] }}
+                            transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, delay: 0.2 }}
+                            className="w-2 h-2 bg-muted-foreground rounded-full"
+                          />
+                          <motion.div
+                            animate={{ y: [0, -5, 0] }}
+                            transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, delay: 0.4 }}
+                            className="w-2 h-2 bg-muted-foreground rounded-full"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
-                    }`}
-                  >
-                    <p className="text-sm">{message.content}</p>
-                  </div>
-
-                  {message.role === "user" && (
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4" />
-                    </div>
-                  )}
+                  <div ref={messagesEndRef} />
                 </div>
-              ))}
 
-              {isLoading && (
-                <div className="flex gap-3 justify-start">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="bg-muted p-3 rounded-lg">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                      <div
-                        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                        style={{ animationDelay: "0.1s" }}
-                      />
-                      <div
-                        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      />
-                    </div>
+                {/* Input */}
+                <div className="p-4 border-t">
+                  <div className="flex gap-2">
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Ask about fashion, styles, or trends..."
+                      className="flex-1"
+                      disabled={isLoading}
+                    />
+                    <Button
+                      onClick={handleSend}
+                      disabled={!input.trim() || isLoading}
+                      size="icon"
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input */}
-            <div className="p-4 border-t">
-              <div className="flex gap-2">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask about fashion, styles, or trends..."
-                  className="flex-1"
-                  disabled={isLoading}
-                />
-                <Button onClick={handleSend} disabled={!input.trim() || isLoading} size="icon">
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
