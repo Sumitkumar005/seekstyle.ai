@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Canvas, useFrame, useLoader } from "@react-three/fiber"
-import { TextureLoader } from "three"
+import { Canvas, useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 
 function AnimatedTorus() {
@@ -26,8 +25,6 @@ function AnimatedTorus() {
 
 function ScrollingMoon() {
   const meshRef = useRef<THREE.Mesh>(null)
-  const moonTexture = useLoader(TextureLoader, "/textures/moon.jpg")
-  const normalTexture = useLoader(TextureLoader, "/textures/normal.jpg")
 
   useFrame(() => {
     if (meshRef.current) {
@@ -45,7 +42,7 @@ function ScrollingMoon() {
   return (
     <mesh ref={meshRef} position={[-10, 0, 30]}>
       <sphereGeometry args={[3, 32, 32]} />
-      <meshStandardMaterial map={moonTexture} normalMap={normalTexture} />
+      <meshStandardMaterial color="#64748b" roughness={0.8} metalness={0.2} />
     </mesh>
   )
 }
@@ -68,7 +65,7 @@ function ScrollingCube() {
   return (
     <mesh ref={meshRef} position={[2, 0, -5]}>
       <boxGeometry args={[3, 3, 3]} />
-      <meshBasicMaterial color="#ec4899" />
+      <meshStandardMaterial color="#ec4899" />
     </mesh>
   )
 }
@@ -113,9 +110,17 @@ function ScrollCamera() {
   return null
 }
 
+function SpaceBackground() {
+  return (
+    <mesh position={[0, 0, -50]}>
+      <planeGeometry args={[200, 200]} />
+      <meshBasicMaterial color="#0f0f23" transparent opacity={0.8} />
+    </mesh>
+  )
+}
+
 export function ScrollingBackground3D() {
   const [isMounted, setIsMounted] = useState(false)
-  const spaceTexture = useLoader(TextureLoader, "/textures/space.jpg")
 
   useEffect(() => {
     setIsMounted(true)
@@ -130,14 +135,14 @@ export function ScrollingBackground3D() {
       <Canvas
         camera={{ position: [-3, 0, 30], fov: 75 }}
         style={{
-          background: `url(${spaceTexture.image?.src || ""})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
+          background: "linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #2d1b69 100%)",
         }}
       >
         <ambientLight intensity={0.5} />
-        <pointLight position={[5, 5, 5]} />
+        <pointLight position={[5, 5, 5]} intensity={1} />
+        <pointLight position={[-5, -5, -5]} intensity={0.5} color="#8b5cf6" />
 
+        <SpaceBackground />
         <AnimatedTorus />
         <ScrollingMoon />
         <ScrollingCube />
