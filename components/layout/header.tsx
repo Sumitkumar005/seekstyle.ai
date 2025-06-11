@@ -56,7 +56,7 @@ export function Header() {
   if (!isMounted) {
     // Return a simplified header for SSR
     return (
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b shadow-lg">
+      <header className="fixed top-0 left-0 right-0 z-20 bg-background/90 backdrop-blur-md border-b shadow-lg">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
@@ -80,8 +80,8 @@ export function Header() {
     <motion.header
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled || !isHomePage ? "bg-background/80 backdrop-blur-xl border-b shadow-lg" : "bg-transparent"
+      className={`fixed top-0 left-0 right-0 z-20 transition-all duration-300 ${
+        isScrolled || !isHomePage ? "bg-background/90 backdrop-blur-md border-b shadow-lg" : "bg-transparent"
       }`}
     >
       <div className="container mx-auto px-4">
