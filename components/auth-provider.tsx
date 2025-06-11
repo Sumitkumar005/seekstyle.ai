@@ -38,24 +38,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing auth token
-    const token = localStorage.getItem("auth_token")
-
-    if (token) {
-      loadUserProfile()
-    } else {
-      setIsLoading(false)
-    }
+    // Check for existing auth token on mount
+    checkAuthStatus()
   }, [])
 
-  const loadUserProfile = async () => {
+  const checkAuthStatus = async () => {
     try {
       setIsLoading(true)
-      const userData = await userAPI.getProfile()
-      setUser(userData)
+
+      // Check localStorage for token
+      const token = localStorage.getItem("auth_token")
+      const userData = localStorage.getItem("user_data")
+
+      if (token && userData) {
+        // Restore user from localStorage
+        const parsedUser = JSON.parse(userData)
+        setUser(parsedUser)
+
+        // Optionally verify token with backend
+        try {
+          const freshUserData = await userAPI.getProfile()
+          setUser(freshUserData)
+          localStorage.setItem("user_data", JSON.stringify(freshUserData))
+        } catch (error) {
+          // If token is invalid, clear storage
+          console.log("Token verification failed, clearing auth")
+          localStorage.removeItem("auth_token")
+          localStorage.removeItem("user_data")
+          setUser(null)
+        }
+      }
     } catch (error) {
-      console.error("Failed to load user profile:", error)
-      localStorage.removeItem("auth_token")
+      console.error("Auth check failed:", error)
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -67,11 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true)
       const response = await userAPI.login(email, password)
 
-      // Store token
+      // Store token and user data
       localStorage.setItem("auth_token", response.token)
+      localStorage.setItem("user_data", JSON.stringify(response.user))
 
-      // Load user profile
-      await loadUserProfile()
+      setUser(response.user)
     } catch (error) {
       console.error("Login failed:", error)
       throw error
@@ -85,11 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true)
       const response = await userAPI.signup(userData)
 
-      // Store token
+      // Store token and user data
       localStorage.setItem("auth_token", response.token)
+      localStorage.setItem("user_data", JSON.stringify(response.user))
 
-      // Load user profile
-      await loadUserProfile()
+      setUser(response.user)
     } catch (error) {
       console.error("Signup failed:", error)
       throw error
@@ -100,7 +114,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem("auth_token")
+    localStorage.removeItem("user_data")
     setUser(null)
+
+    // Redirect to home page
+    window.location.href = "/"
   }
 
   return (
